@@ -1,0 +1,18 @@
+[package]
+name = "n4"
+version = "0.1.0"
+authors = ["anon"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = { version = "0.4.19", features = ["serde"] }
+markdown = "0.3.0"
+serde = "1.0.118"
+serde_derive = "1.0.118"
+
+# Development dependencies
+file_tree = { path="/home/anon/code/file_tree" }
+dotenv = "0.15.0"
+dotenv_codegen = "0.15.0"
