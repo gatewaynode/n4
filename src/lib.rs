@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use chrono;
@@ -44,9 +44,9 @@ impl Default for SiteConfig {
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct PageContent {
-    markdown: MDContent,
-    json: JSONContent,
-    css: CSSContent,
+    pub markdown: MDContent,
+    pub json: JSONContent,
+    pub css: CSSContent,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -236,10 +236,12 @@ pub fn read_md_dirs(dir: &str, rel_path: &str) -> Vec<DirContent> {
             ));
         }
     }
-    // contents.sort_unstable_by_key(|x| x.modified);  // Not sure if this needs to be sorted this way now
-    println!("{:?}", contents);
+    contents.sort_unstable_by_key(|x| x.modified); // Not sure if this needs to be sorted this way now
+                                                   // println!("{:?}", contents);
     contents
 }
+
+// pub fn read_top_ten()
 
 pub fn generate_menus(dir: &str, rel_path: &str) -> Vec<MenuContent> {
     // Read the paths in the provided directory
@@ -328,7 +330,7 @@ pub fn read_single_page(this_path: &std::path::Path) -> PageContent {
         page_content.markdown = MDContent {
             created: read_file_creation_time(&this_path),
             title: file_stem,
-            path: this_path.to_string_lossy().to_string().clone(),
+            path: localpath_to_webpath(&PathBuf::from(this_path)), //this_path.to_string_lossy().to_string().clone(),
             body: read_markdown_from_path(&this_path),
         };
     } else if check_path_alternatives(&this_path, "json") {
