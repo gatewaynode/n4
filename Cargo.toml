@@ -17,3 +17,4 @@ file_tree = { path="/home/anon/code/file_tree" }
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
 chrono-humanize = "0.1.1"
+serde_json = "1.0.61"

@@ -17,6 +17,7 @@ use chrono::prelude::*;
 use dotenv::dotenv;
 use markdown;
 use serde_derive::{Deserialize, Serialize};
+use serde_json;
 
 // Currently a development dependency
 use file_tree::*;
@@ -77,13 +78,6 @@ pub struct DirContent {
     relative_path: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MenuContent {
-    created: chrono::DateTime<chrono::Utc>, //NaiveDateTime,
-    title: String,
-    relative_path: String,
-}
-
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct JSONContent {
     payload: String,
@@ -103,7 +97,7 @@ pub struct SiteMapEntry {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MenuItem {
-    // menu_meta: String, // TODO Future state
+    menu_meta: MenuItemMeta,
     number_of_files: u32,
     relative_path: String,
     children: HashMap<String, MenuItem>,
@@ -112,10 +106,27 @@ pub struct MenuItem {
 impl Default for MenuItem {
     fn default() -> Self {
         MenuItem {
-            // menu_meta: "Default".to_string(),
+            menu_meta: MenuItemMeta::default(),
             number_of_files: 0,
             relative_path: "Default".to_string(),
             children: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MenuItemMeta {
+    menu_icon: String,   // Really a path to an svg
+    description: String, // Used in title attribute for hover detail
+    weight: u32,
+}
+
+impl Default for MenuItemMeta {
+    fn default() -> Self {
+        MenuItemMeta {
+            menu_icon: String::from("/static/images/menu_default_icon.svg"),
+            description: String::from("Menu entry to another section of the site."),
+            weight: 100,
         }
     }
 }
@@ -125,6 +136,38 @@ impl Default for MenuItem {
 //    0
 // }
 
+pub fn read_menu_meta_file(file_path: PathBuf) -> MenuItemMeta {
+    let mut content = String::new();
+
+    // File read
+    let mut _file = match fs::File::open(&file_path) {
+        Err(why) => panic!("Couldn't open file: {}", why),
+        Ok(mut _file) => _file.read_to_string(&mut content),
+    };
+    // Deserialize the JSON
+    let return_struct: MenuItemMeta = match serde_json::from_str(&content) {
+        Err(why) => panic!("Bad menu meta JSON: {} \n {:#?}", why, content),
+        Ok(value) => value,
+    };
+    return_struct
+}
+
+pub fn add_menu_metadata(meta_path_raw: &String) -> MenuItemMeta {
+    let meta_path: PathBuf = PathBuf::from(&format!(
+        "{}{}",
+        meta_path_raw, //.strip_suffix("/").unwrap_or(),
+        ".menu_meta"
+    ));
+
+    if meta_path.exists() {
+        // return MenuItemMeta::default();
+        read_menu_meta_file(meta_path)
+    } else {
+        return MenuItemMeta::default();
+    }
+}
+
+// TODO pass in prefix to strip from site config
 pub fn tree_to_menus(dir_tree: DirTree) -> HashMap<String, MenuItem> {
     let mut menus: HashMap<String, MenuItem> = HashMap::new();
     for (key, value) in dir_tree.directories {
@@ -132,6 +175,7 @@ pub fn tree_to_menus(dir_tree: DirTree) -> HashMap<String, MenuItem> {
             menus.insert(
                 key,
                 MenuItem {
+                    menu_meta: add_menu_metadata(&value.absolute_path),
                     number_of_files: value.files.len() as u32,
                     relative_path: value
                         .relative_path
@@ -145,6 +189,7 @@ pub fn tree_to_menus(dir_tree: DirTree) -> HashMap<String, MenuItem> {
             menus.insert(
                 key,
                 MenuItem {
+                    menu_meta: add_menu_metadata(&value.absolute_path),
                     number_of_files: value.files.len() as u32,
                     relative_path: value
                         .relative_path
@@ -179,7 +224,7 @@ fn tree_to_sitemap(dir_tree: DirTree) -> Vec<SiteMapEntry> {
                     .relative_path
                     .strip_prefix(&config.base_dir)
                     .unwrap(),
-            ); // TODO fix this in the tree
+            );
 
             files.push(SiteMapEntry {
                 location: format!(
@@ -242,34 +287,6 @@ pub fn read_md_dirs(dir: &str, rel_path: &str) -> Vec<DirContent> {
 }
 
 // pub fn read_top_ten()
-
-pub fn generate_menus(dir: &str, rel_path: &str) -> Vec<MenuContent> {
-    // Read the paths in the provided directory
-    let paths = fs::read_dir(dir).unwrap();
-    let mut contents: Vec<MenuContent> = Vec::new();
-
-    for item in paths {
-        let this_path = &item.unwrap().path();
-        // All dirs become menu items, so the menus match the file tree of directories
-        if this_path.is_dir() {
-            let new_content = MenuContent {
-                created: read_file_creation_time(&this_path),
-                title: String::from(this_path.file_stem().unwrap().to_string_lossy()),
-                relative_path: String::from(rel_path),
-            };
-            contents.push(new_content);
-            let dir_name: String = String::from(this_path.file_stem().unwrap().to_string_lossy());
-            let new_rel_path: String = format!("{}/{}", rel_path, dir_name);
-            // Recursively append content menus
-            contents.append(&mut generate_menus(
-                &this_path.to_string_lossy(),
-                &new_rel_path,
-            ));
-        }
-    }
-    // contents.sort_unstable_by_key(|x| x.modified);  // Not sure if this needs to be sorted this way now
-    contents
-}
 
 fn localpath_to_webpath(this_path: &std::path::PathBuf) -> String {
     let config = SiteConfig::default();
