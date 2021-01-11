@@ -46,8 +46,6 @@ impl Default for SiteConfig {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct PageContent {
     pub markdown: MDContent,
-    pub json: JSONContent,
-    pub css: CSSContent,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -57,6 +55,7 @@ pub struct MDContent {
     pub title: String,
     pub path: String,
     pub body: String,
+    pub meta: ContentMeta,
 }
 
 impl Default for MDContent {
@@ -67,6 +66,38 @@ impl Default for MDContent {
             title: String::from("None"),
             path: String::from("/"),
             body: String::from("None"),
+            meta: ContentMeta::default(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ContentMeta {
+    content_icon: String,
+    description: String,
+    timestamp_override: Option<chrono::DateTime<chrono::Utc>>,
+    // template_override: String,
+    // javascript_include: Vec<String>,
+    // javascript_inline: String,
+    // css_include: Vec<String>
+    // css_inline: String,
+    weight: u32,
+}
+
+impl Default for ContentMeta {
+    fn default() -> Self {
+        ContentMeta {
+            content_icon: String::from("/static/images/content_default_icon.svg"),
+            description: String::from(
+                "This would be a brief description, if I actually wrote one.",
+            ),
+            timestamp_override: None,
+            // template_override: String,
+            // javascript_include: Vec<String>,
+            // javascript_inline: String,
+            // css_include: Vec<String>
+            // css_inline: String,
+            weight: 100,
         }
     }
 }
@@ -76,16 +107,6 @@ pub struct DirContent {
     modified: chrono::DateTime<chrono::Utc>, //NaiveDateTime,
     title: String,
     relative_path: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct JSONContent {
-    payload: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct CSSContent {
-    payload: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -308,23 +329,20 @@ pub fn read_full_dir_sorted(dir: &str) -> Vec<PageContent> {
                 pages.insert(file_stem.clone(), PageContent::default());
             }
             if this_path.extension().unwrap() == "md" {
-                let new_content = MDContent {
+                let mut new_content = MDContent {
                     created: read_file_creation_time(&this_path),
                     title: file_stem.clone(),
                     path: localpath_to_webpath(this_path),
                     body: read_markdown_from_path(&this_path),
+                    meta: ContentMeta::default(),
                 };
+                // Check for metadata and load that if it exists
+                if check_path_alternatives(this_path, ".content_meta") {
+                    let content_meta_path =
+                        String::from(this_path.to_string_lossy()).replace(".md", ".content_meta");
+                    new_content.meta = read_content_meta_file(PathBuf::from(content_meta_path));
+                }
                 pages.get_mut(&file_stem).unwrap().markdown = new_content;
-            } else if this_path.extension().unwrap() == "json" {
-                let new_content = JSONContent {
-                    payload: read_json_from_path(&this_path),
-                };
-                pages.get_mut(&file_stem).unwrap().json = new_content;
-            } else if this_path.extension().unwrap() == "css" {
-                let new_content = CSSContent {
-                    payload: read_css_from_path(&this_path),
-                };
-                pages.get_mut(&file_stem).unwrap().css = new_content;
             }
         }
     }
@@ -342,28 +360,39 @@ pub fn read_single_page(this_path: &std::path::Path) -> PageContent {
     let mut page_content: PageContent = PageContent::default();
     let file_stem: String = String::from(this_path.file_stem().unwrap().to_string_lossy());
 
-    // Load markdown first
+    // Ensure markdown extension and convert markdown to HTML string
     if this_path.extension().unwrap() == "md" {
         page_content.markdown = MDContent {
             created: read_file_creation_time(&this_path),
             title: file_stem,
             path: localpath_to_webpath(&PathBuf::from(this_path)), //this_path.to_string_lossy().to_string().clone(),
             body: read_markdown_from_path(&this_path),
-        };
-    } else if check_path_alternatives(&this_path, "json") {
-        let replaced_path_ext: String = this_path.to_string_lossy().replace(".md", ".json");
-        let new_path: &std::path::Path = Path::new(&replaced_path_ext);
-        page_content.json = JSONContent {
-            payload: read_json_from_path(&new_path),
-        };
-    } else if check_path_alternatives(&this_path, "css") {
-        let replaced_path_ext: String = this_path.to_string_lossy().replace(".md", ".css");
-        let new_path: &std::path::Path = Path::new(&replaced_path_ext);
-        page_content.css = CSSContent {
-            payload: read_css_from_path(&new_path),
+            meta: ContentMeta::default(),
         };
     }
+    // Check for metadata and load that if it exists
+    if check_path_alternatives(this_path, ".content_meta") {
+        let content_meta_path =
+            String::from(this_path.to_string_lossy()).replace(".md", ".content_meta");
+        page_content.markdown.meta = read_content_meta_file(PathBuf::from(content_meta_path));
+    }
     page_content
+}
+
+pub fn read_content_meta_file(file_path: PathBuf) -> ContentMeta {
+    let mut content_meta = String::new();
+
+    // File read
+    let mut _file = match fs::File::open(&file_path) {
+        Err(why) => panic!("Couldn't open file: {}", why),
+        Ok(mut _file) => _file.read_to_string(&mut content_meta),
+    };
+    // Deserialize the JSON
+    let return_struct: ContentMeta = match serde_json::from_str(&content_meta) {
+        Err(why) => panic!("Bad content meta JSON: {} \n {:#?}", why, content_meta),
+        Ok(value) => value,
+    };
+    return_struct
 }
 
 // This function looks for a base markdown file by extension and returns TRUE if it exists, confirming there is a piece
