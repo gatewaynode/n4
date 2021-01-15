@@ -18,6 +18,7 @@ use dotenv::dotenv;
 use markdown;
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
+use v_htmlescape::escape;
 
 // Currently a development dependency
 use file_tree::*;
@@ -82,6 +83,8 @@ pub struct ContentMeta {
     // css_include: Vec<String>
     // css_inline: String,
     weight: u32,
+    author: String,
+    license: String,
 }
 
 impl Default for ContentMeta {
@@ -98,6 +101,8 @@ impl Default for ContentMeta {
             // css_include: Vec<String>
             // css_inline: String,
             weight: 100,
+            author: String::from("anonymous"),
+            license: String::from("cc-by-sa"),
         }
     }
 }
@@ -240,21 +245,48 @@ fn tree_to_sitemap(dir_tree: DirTree) -> Vec<SiteMapEntry> {
     if dir_tree.files.len() > 0 {
         for filename in dir_tree.files.keys() {
             // Strip leading dir in relative path
-            let stripped_relative_path: String = String::from(
-                dir_tree
-                    .relative_path
-                    .strip_prefix(&config.base_dir)
-                    .unwrap(),
-            );
-
-            files.push(SiteMapEntry {
-                location: format!(
-                    "{}/{}/{}",
-                    config.prod_host, stripped_relative_path, filename
-                ),
-                lastmod: unix_time_to_iso(dir_tree.files[filename].modified),
-                priority: config.xml_priority.clone(),
-            });
+            dbg!(&dir_tree.relative_path);
+            dbg!(&config.base_dir);
+            let mut stripped_relative_path = String::new();
+            if dir_tree.relative_path.ends_with("/") {
+                let temp_base_dir = &config.base_dir.strip_suffix("/").unwrap();
+                stripped_relative_path = String::from(
+                    escape(
+                        dir_tree
+                            .relative_path
+                            .strip_prefix(temp_base_dir)
+                            .unwrap_or(""),
+                    )
+                    .to_string(),
+                );
+            } else {
+                stripped_relative_path = String::from(
+                    escape(
+                        dir_tree
+                            .relative_path
+                            .strip_prefix(&config.base_dir)
+                            .unwrap_or(""),
+                    )
+                    .to_string(),
+                );
+            }
+            dbg!(&stripped_relative_path);
+            if &stripped_relative_path.len() > &0 {
+                files.push(SiteMapEntry {
+                    location: format!(
+                        "{}/{}/{}",
+                        config.prod_host, stripped_relative_path, filename
+                    ),
+                    lastmod: unix_time_to_iso(dir_tree.files[filename].modified),
+                    priority: config.xml_priority.clone(),
+                });
+            } else {
+                files.push(SiteMapEntry {
+                    location: format!("{}/{}", config.prod_host, filename),
+                    lastmod: unix_time_to_iso(dir_tree.files[filename].modified),
+                    priority: config.xml_priority.clone(),
+                });
+            }
         }
     }
     if dir_tree.directories.len() > 0 {
@@ -389,7 +421,11 @@ pub fn read_content_meta_file(file_path: PathBuf) -> ContentMeta {
     };
     // Deserialize the JSON
     let return_struct: ContentMeta = match serde_json::from_str(&content_meta) {
-        Err(why) => panic!("Bad content meta JSON: {} \n {:#?}", why, content_meta),
+        Err(why) => {
+            let mut error_meta = ContentMeta::default();
+            error_meta.description = format!("JSON Parse Error: {}", why);
+            error_meta
+        }
         Ok(value) => value,
     };
     return_struct
