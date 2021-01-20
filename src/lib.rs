@@ -6,7 +6,6 @@
 extern crate dotenv;
 
 use std::collections::HashMap;
-use std::env;
 use std::fs;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
@@ -14,7 +13,7 @@ use std::time::UNIX_EPOCH;
 
 use chrono;
 use chrono::prelude::*;
-use dotenv::dotenv;
+use dirs;
 use markdown;
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
@@ -23,15 +22,13 @@ use v_htmlescape::escape;
 // Currently a development dependency
 use file_tree::*;
 
-#[macro_use]
-extern crate dotenv_codegen;
-
 // TODO Temporarily hard coded, move to config file
 #[derive(Serialize, Deserialize, Debug)]
-struct SiteConfig {
-    prod_host: String,
-    xml_priority: String,
-    base_dir: String,
+pub struct SiteConfig {
+    prod_host: String, // Production protocol and FQDN such as https://gatewaynode.com
+    xml_priority: String, // Just 0.64 normally for sitemap.xml
+    base_dir: String,  // Relative root directory name of the content
+    local_content_dir: String, // Absolute path to content directory, concatenated with base dir on end
 }
 
 impl Default for SiteConfig {
@@ -40,8 +37,16 @@ impl Default for SiteConfig {
             prod_host: String::from("https://gatewaynode.com"),
             xml_priority: String::from("0.64"),
             base_dir: String::from("website/"),
+            local_content_dir: String::from("/home/anon/Documents/gatewaynode_notes/"),
         }
     }
+}
+
+pub fn load_config() -> SiteConfig {
+    let config_dir = dirs::config_dir();
+    dbg!(config_dir);
+    let site_config = SiteConfig::default();
+    site_config
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -56,6 +61,7 @@ pub struct MDContent {
     pub title: String,
     pub path: String,
     pub body: String,
+    pub list: Vec<PageContent>,
     pub meta: ContentMeta,
 }
 
@@ -67,6 +73,7 @@ impl Default for MDContent {
             title: String::from("None"),
             path: String::from("/"),
             body: String::from("None"),
+            list: Vec::new(),
             meta: ContentMeta::default(),
         }
     }
@@ -77,35 +84,39 @@ pub struct ContentMeta {
     content_icon: String,
     description: String,
     timestamp_override: Option<chrono::DateTime<chrono::Utc>>,
+    weight: u32,
+    author: String,
+    license: String,
+    content_list: Vec<String>,
+    content_type: String,
+    content_class: String,
     // template_override: String,
     // javascript_include: Vec<String>,
     // javascript_inline: String,
     // css_include: Vec<String>
     // css_inline: String,
-    weight: u32,
-    author: String,
-    license: String,
 }
 
 impl Default for ContentMeta {
     fn default() -> Self {
         ContentMeta {
             content_icon: String::from("/static/images/content_default_icon.svg"),
-            description: String::from(
-                "This would be a brief description, if I actually wrote one.",
-            ),
+            description: String::from("Default description value"),
             timestamp_override: None,
-            // template_override: String,
-            // javascript_include: Vec<String>,
-            // javascript_inline: String,
-            // css_include: Vec<String>
-            // css_inline: String,
             weight: 100,
-            author: String::from("anonymous"),
+            author: String::from("Gatewaynode"), //TODO move this to configurable
             license: String::from("cc-by-sa"),
+            content_list: Vec::new(),
+            content_type: String::from("page"),
+            content_class: String::from("basic-page"),
         }
     }
 }
+
+// impl ContentMeta {
+//     pub fn as_string(Self) -> String {
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DirContent {
@@ -245,8 +256,6 @@ fn tree_to_sitemap(dir_tree: DirTree) -> Vec<SiteMapEntry> {
     if dir_tree.files.len() > 0 {
         for filename in dir_tree.files.keys() {
             // Strip leading dir in relative path
-            dbg!(&dir_tree.relative_path);
-            dbg!(&config.base_dir);
             let mut stripped_relative_path = String::new();
             if dir_tree.relative_path.ends_with("/") {
                 let temp_base_dir = &config.base_dir.strip_suffix("/").unwrap();
@@ -270,7 +279,6 @@ fn tree_to_sitemap(dir_tree: DirTree) -> Vec<SiteMapEntry> {
                     .to_string(),
                 );
             }
-            dbg!(&stripped_relative_path);
             if &stripped_relative_path.len() > &0 {
                 files.push(SiteMapEntry {
                     location: format!(
@@ -366,6 +374,7 @@ pub fn read_full_dir_sorted(dir: &str) -> Vec<PageContent> {
                     title: file_stem.clone(),
                     path: localpath_to_webpath(this_path),
                     body: read_markdown_from_path(&this_path),
+                    list: Vec::new(),
                     meta: ContentMeta::default(),
                 };
                 // Check for metadata and load that if it exists
@@ -388,6 +397,25 @@ pub fn read_full_dir_sorted(dir: &str) -> Vec<PageContent> {
     contents
 }
 
+// Mainly for reading the content_meta content_list values prefixes local dir and document base dir
+pub fn read_content_list(list_o_content: &Vec<String>) -> Vec<PageContent> {
+    let config = SiteConfig::default();
+    let mut page_list: Vec<PageContent> = Vec::new();
+    for item in list_o_content {
+        let temp_string = format!("{}{}{}", config.local_content_dir, config.base_dir, item);
+        let this_path = PathBuf::from(temp_string);
+        if !&this_path.is_dir() && this_path.exists() {
+            page_list.push(read_single_page(this_path.as_path()));
+        } else {
+            println!("Content list failure.");
+            dbg!(list_o_content);
+        }
+    }
+
+    page_list.sort_unstable_by_key(|x| x.markdown.meta.weight);
+    page_list
+}
+
 pub fn read_single_page(this_path: &std::path::Path) -> PageContent {
     let mut page_content: PageContent = PageContent::default();
     let file_stem: String = String::from(this_path.file_stem().unwrap().to_string_lossy());
@@ -399,6 +427,7 @@ pub fn read_single_page(this_path: &std::path::Path) -> PageContent {
             title: file_stem,
             path: localpath_to_webpath(&PathBuf::from(this_path)), //this_path.to_string_lossy().to_string().clone(),
             body: read_markdown_from_path(&this_path),
+            list: Vec::new(),
             meta: ContentMeta::default(),
         };
     }
@@ -407,6 +436,12 @@ pub fn read_single_page(this_path: &std::path::Path) -> PageContent {
         let content_meta_path =
             String::from(this_path.to_string_lossy()).replace(".md", ".content_meta");
         page_content.markdown.meta = read_content_meta_file(PathBuf::from(content_meta_path));
+    }
+    // If the meta file contains a content_list load that into the MDContent list
+    // This is essentially recursive
+
+    if page_content.markdown.meta.content_list.len() > 0 {
+        page_content.markdown.list = read_content_list(&page_content.markdown.meta.content_list);
     }
     page_content
 }
@@ -422,6 +457,8 @@ pub fn read_content_meta_file(file_path: PathBuf) -> ContentMeta {
     // Deserialize the JSON
     let return_struct: ContentMeta = match serde_json::from_str(&content_meta) {
         Err(why) => {
+            // TODO This should trigger an integrity check and correct the JSON file with default values if
+            // possible while preserving existing values.
             let mut error_meta = ContentMeta::default();
             error_meta.description = format!("JSON Parse Error: {}", why);
             error_meta
@@ -433,9 +470,10 @@ pub fn read_content_meta_file(file_path: PathBuf) -> ContentMeta {
 
 // This function looks for a base markdown file by extension and returns TRUE if it exists, confirming there is a piece
 // of content that inherits CSS or JSON
-fn check_path_alternatives(this_path: &std::path::Path, extension: &str) -> bool {
+// TODO Add an input validation layer here, check for illegal escape attempts and return False if found
+pub fn check_path_alternatives(this_path: &Path, extension: &str) -> bool {
     let path_check_str: String = this_path.to_string_lossy().replace(".md", extension);
-    let new_path: &std::path::Path = Path::new(&path_check_str);
+    let new_path: &Path = Path::new(&path_check_str);
     new_path.exists()
 }
 
