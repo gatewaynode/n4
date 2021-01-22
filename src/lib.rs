@@ -156,14 +156,18 @@ pub struct MenuItemMeta {
     menu_icon: String,   // Really a path to an svg
     description: String, // Used in title attribute for hover detail
     weight: u32,
+    section_class: String,
+    section_template: String,
 }
 
 impl Default for MenuItemMeta {
     fn default() -> Self {
         MenuItemMeta {
             menu_icon: String::from("/static/images/menu_default_icon.svg"),
-            description: String::from("Menu entry to another section of the site."),
+            description: String::from("Menu default description."),
             weight: 100,
+            section_class: String::from("section"),
+            section_template: String::from("article"),
         }
     }
 }
@@ -173,6 +177,7 @@ impl Default for MenuItemMeta {
 //    0
 // }
 
+// This really just breaks out the file read and JSON deserialize into it's own function
 pub fn read_menu_meta_file(file_path: PathBuf) -> MenuItemMeta {
     let mut content = String::new();
 
@@ -183,12 +188,16 @@ pub fn read_menu_meta_file(file_path: PathBuf) -> MenuItemMeta {
     };
     // Deserialize the JSON
     let return_struct: MenuItemMeta = match serde_json::from_str(&content) {
-        Err(why) => panic!("Bad menu meta JSON: {} \n {:#?}", why, content),
+        Err(why) => {
+            println!("Bad menu meta JSON: {} \n {:#?}", why, content); // TODO Change to logging
+            return MenuItemMeta::default();
+        }
         Ok(value) => value,
     };
     return_struct
 }
 
+// Formats a path to a directory for the .menu_meta extension and checks if it exists
 pub fn add_menu_metadata(meta_path_raw: &String) -> MenuItemMeta {
     let meta_path: PathBuf = PathBuf::from(&format!(
         "{}{}",
@@ -216,7 +225,7 @@ pub fn tree_to_menus(dir_tree: DirTree) -> HashMap<String, MenuItem> {
                     number_of_files: value.files.len() as u32,
                     relative_path: value
                         .relative_path
-                        .strip_prefix("website")
+                        .strip_prefix("website") // TODO
                         .unwrap()
                         .to_string(),
                     children: tree_to_menus(value),
@@ -230,7 +239,7 @@ pub fn tree_to_menus(dir_tree: DirTree) -> HashMap<String, MenuItem> {
                     number_of_files: value.files.len() as u32,
                     relative_path: value
                         .relative_path
-                        .strip_prefix("website")
+                        .strip_prefix("website") // TODO
                         .unwrap()
                         .to_string(),
                     children: HashMap::new(),
@@ -347,8 +356,6 @@ pub fn read_md_dirs(dir: &str, rel_path: &str) -> Vec<DirContent> {
     contents
 }
 
-// pub fn read_top_ten()
-
 fn localpath_to_webpath(this_path: &std::path::PathBuf) -> String {
     let config = SiteConfig::default();
     let mut rel_path = this_path.to_string_lossy().to_string();
@@ -357,6 +364,7 @@ fn localpath_to_webpath(this_path: &std::path::PathBuf) -> String {
     rel_path.strip_suffix(".md").unwrap().to_string()
 }
 
+// TODO Change the content read to use the single page read
 pub fn read_full_dir_sorted(dir: &str) -> Vec<PageContent> {
     let paths = fs::read_dir(dir).unwrap();
     let mut pages: HashMap<String, PageContent> = HashMap::new();
@@ -431,15 +439,15 @@ pub fn read_single_page(this_path: &std::path::Path) -> PageContent {
             meta: ContentMeta::default(),
         };
     }
-    // Check for metadata and load that if it exists
+    // Check for content metadata and load that if it exists
     if check_path_alternatives(this_path, ".content_meta") {
         let content_meta_path =
             String::from(this_path.to_string_lossy()).replace(".md", ".content_meta");
         page_content.markdown.meta = read_content_meta_file(PathBuf::from(content_meta_path));
     }
+
     // If the meta file contains a content_list load that into the MDContent list
     // This is essentially recursive
-
     if page_content.markdown.meta.content_list.len() > 0 {
         page_content.markdown.list = read_content_list(&page_content.markdown.meta.content_list);
     }
