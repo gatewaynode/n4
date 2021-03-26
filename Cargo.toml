@@ -9,8 +9,8 @@ edition = "2018"
 [dependencies]
 chrono = { version = "0.4.19", features = ["serde"] }
 markdown = "0.3.0"
-serde = "1.0.118"
-serde_derive = "1.0.118"
+serde = "1.0.123"
+serde_derive = "1.0.123"
 
 # Development dependencies
 file_tree = { path="/home/anon/code/file_tree" }

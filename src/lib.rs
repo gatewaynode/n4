@@ -46,6 +46,194 @@ impl SiteConfig {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct PageContent {
+    pub markdown: MDContent,
+    pub html: Option<HTMLContent>,
+    pub json: Option<JSONContent>,
+    pub list: Vec<PageContent>,
+    pub meta: ContentMeta,
+    pub section_meta: MenuItemMeta,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MDContent {
+    pub created: chrono::DateTime<chrono::Utc>,
+    pub modified: chrono::DateTime<chrono::Utc>,
+    // pub path: String,
+    pub body: String,
+    // pub list: Vec<PageContent>, // TODO move to meta file
+    // pub meta: ContentMeta,
+}
+
+impl Default for MDContent {
+    fn default() -> Self {
+        MDContent {
+            created: unix_time_to_iso(0.0),
+            modified: unix_time_to_iso(0.0),
+            // path: String::from("/"),
+            body: String::from("Default value"),
+            // list: Vec::new(), // TODO move to meta file
+            // meta: ContentMeta::default(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct HTMLContent {
+    pub created: chrono::DateTime<chrono::Utc>,
+    pub modified: chrono::DateTime<chrono::Utc>,
+    // pub path: String,
+    pub body: String,
+}
+
+impl Default for HTMLContent {
+    fn default() -> Self {
+        HTMLContent {
+            created: unix_time_to_iso(0.0),
+            modified: unix_time_to_iso(0.0),
+            // path: String::from("/"),
+            body: String::from("None"),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct JSONContent {
+    pub created: chrono::DateTime<chrono::Utc>,
+    pub modified: chrono::DateTime<chrono::Utc>,
+    // pub path: String,
+    pub body: String,
+}
+
+impl Default for JSONContent {
+    fn default() -> Self {
+        JSONContent {
+            created: unix_time_to_iso(0.0),
+            modified: unix_time_to_iso(0.0),
+            // path: String::from("/"),
+            body: String::from("None"),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ContentMeta {
+    pub title: String,
+    pub path: String,
+    pub content_icon: String,
+    pub description: String,
+    pub weight: u32,
+    pub author: String,
+    pub license: String,
+    pub content_list: Vec<String>,
+    pub content_type: String,
+    content_class: String,
+    pub template_override: String,
+    javascript_include: Vec<String>,
+    javascript_inline: String,
+    css_include: Vec<String>,
+    css_inline: String,
+    created_time_default: String,
+    modified_time_default: String,
+}
+
+impl Default for ContentMeta {
+    fn default() -> Self {
+        ContentMeta {
+            title: String::from("Default ContentMeta struct title"),
+            path: String::from("/"),
+            content_icon: String::from("/static/images/content_default_icon.svg"),
+            description: String::from("Default description value"),
+            weight: 100,
+            author: String::from("Default"), //TODO move this to configurable
+            license: String::from("cc-by-sa"),
+            content_list: Vec::new(),
+            content_type: String::from("page"),
+            content_class: String::from("basic-page"),
+            template_override: String::from(""),
+            javascript_include: Vec::new(),
+            javascript_inline: String::from(""),
+            css_include: Vec::new(),
+            css_inline: String::from(""),
+            created_time_default: String::from("markdown"),
+            modified_time_default: String::from("markdown"),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DirContent {
+    modified: chrono::DateTime<chrono::Utc>, //NaiveDateTime,
+    title: String,
+    relative_path: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SiteMapEntry {
+    pub location: String,
+    pub lastmod: DateTime<Utc>,
+    pub priority: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MenuItem {
+    menu_meta: MenuItemMeta,
+    number_of_files: u32,
+    relative_path: String,
+    children: HashMap<String, MenuItem>,
+}
+
+impl Default for MenuItem {
+    fn default() -> Self {
+        MenuItem {
+            menu_meta: MenuItemMeta::default(),
+            number_of_files: 0,
+            relative_path: "Default".to_string(),
+            children: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MenuItemMeta {
+    pub menu_icon: String,   // Really a path to an svg
+    pub description: String, // Used in title attribute for hover detail
+    pub weight: u32,
+    pub section_template: String, // This is intended to be a new default for all content in the directory
+    pub template_override: String, // This override is for just the index page of the directory
+    pub content_type: String,
+    section_class: String,                   // This is an inherited body class
+    content_class: String,                   // Not inherited, just for the directory index page
+    section_javascript_include: Vec<String>, // Inherited
+    javascript_include: Vec<String>,
+    javascript_inline: String,
+    section_css_include: Vec<String>, // Inherited
+    css_include: Vec<String>,
+    css_inline: String,
+}
+
+impl Default for MenuItemMeta {
+    fn default() -> Self {
+        MenuItemMeta {
+            menu_icon: String::from("/static/images/menu_default_icon.svg"),
+            description: String::from("Menu default description."),
+            weight: 100,
+            section_template: String::from("article"),
+            template_override: String::from(""),
+            content_type: String::from("directory"),
+            section_class: String::from("section"),
+            content_class: String::from("directory-page"),
+            section_javascript_include: Vec::new(),
+            javascript_include: Vec::new(),
+            javascript_inline: String::from(""),
+            section_css_include: Vec::new(),
+            css_include: Vec::new(),
+            css_inline: String::from(""),
+        }
+    }
+}
+
 pub fn load_config() -> SiteConfig {
     let mut site_config = String::new();
     let mut config_file_path: PathBuf = match dirs::config_dir() {
@@ -68,6 +256,7 @@ pub fn load_config() -> SiteConfig {
 }
 
 /// Creates the standard user config directory and an empty config JSON file
+/// Meant to be called from the CLI
 pub fn setup_config() {
     let mut config_dir: PathBuf = match dirs::config_dir() {
         Some(val) => PathBuf::from(val),
@@ -112,124 +301,7 @@ pub fn setup_config() {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct PageContent {
-    pub markdown: MDContent,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MDContent {
-    // pub created: NaiveDateTime,
-    pub created: chrono::DateTime<chrono::Utc>,
-    pub title: String,
-    pub path: String,
-    pub body: String,
-    pub list: Vec<PageContent>,
-    pub meta: ContentMeta,
-}
-
-impl Default for MDContent {
-    fn default() -> Self {
-        MDContent {
-            // created: NaiveDateTime::from_timestamp(0, 0),
-            created: unix_time_to_iso(0.0),
-            title: String::from("None"),
-            path: String::from("/"),
-            body: String::from("None"),
-            list: Vec::new(),
-            meta: ContentMeta::default(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ContentMeta {
-    content_icon: String,
-    description: String,
-    timestamp_override: Option<chrono::DateTime<chrono::Utc>>,
-    weight: u32,
-    author: String,
-    license: String,
-    content_list: Vec<String>,
-    content_type: String,
-    content_class: String,
-    // template_override: String,
-    // javascript_include: Vec<String>,
-    // javascript_inline: String,
-    // css_include: Vec<String>
-    // css_inline: String,
-}
-
-impl Default for ContentMeta {
-    fn default() -> Self {
-        ContentMeta {
-            content_icon: String::from("/static/images/content_default_icon.svg"),
-            description: String::from("Default description value"),
-            timestamp_override: None,
-            weight: 100,
-            author: String::from("Gatewaynode"), //TODO move this to configurable
-            license: String::from("cc-by-sa"),
-            content_list: Vec::new(),
-            content_type: String::from("page"),
-            content_class: String::from("basic-page"),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct DirContent {
-    modified: chrono::DateTime<chrono::Utc>, //NaiveDateTime,
-    title: String,
-    relative_path: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SiteMapEntry {
-    pub location: String,
-    pub lastmod: DateTime<Utc>,
-    pub priority: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MenuItem {
-    menu_meta: MenuItemMeta,
-    number_of_files: u32,
-    relative_path: String,
-    children: HashMap<String, MenuItem>,
-}
-
-impl Default for MenuItem {
-    fn default() -> Self {
-        MenuItem {
-            menu_meta: MenuItemMeta::default(),
-            number_of_files: 0,
-            relative_path: "Default".to_string(),
-            children: HashMap::new(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MenuItemMeta {
-    menu_icon: String,   // Really a path to an svg
-    description: String, // Used in title attribute for hover detail
-    weight: u32,
-    section_class: String,
-    section_template: String,
-}
-
-impl Default for MenuItemMeta {
-    fn default() -> Self {
-        MenuItemMeta {
-            menu_icon: String::from("/static/images/menu_default_icon.svg"),
-            description: String::from("Menu default description."),
-            weight: 100,
-            section_class: String::from("section"),
-            section_template: String::from("article"),
-        }
-    }
-}
-
+/// Generate a simple robots.txt file
 pub fn generate_robot_food() -> String {
     let config = load_config();
     format!(
@@ -240,11 +312,6 @@ Sitemap: {}/sitemap.xml",
         config.prod_host
     )
 }
-
-// TODOget back to this once we have the extensions in the file meta from file_tree
-// fn count_md_files(regular_file_list: HashMap<String, file_tree::FileMeta>) -> u32 {
-//    0
-// }
 
 // This really just breaks out the file read and JSON deserialize into it's own function
 pub fn read_menu_meta_file(file_path: PathBuf) -> MenuItemMeta {
@@ -398,131 +465,215 @@ pub fn generate_content_state() -> file_tree::DirTree {
     dir_tree
 }
 
-fn localpath_to_webpath(this_path: &std::path::PathBuf) -> String {
-    let config = load_config();
-    let mut rel_path = this_path.to_string_lossy().to_string();
-    // offset is necessary for replace range, this is the calculation of it
-    let offset = rel_path.find(&config.base_dir).unwrap() + config.base_dir.len(); // I think panic here is ok as it will break the site generally
-    rel_path.replace_range(..offset, "/");
-    rel_path.strip_suffix(".md").unwrap().to_string()
-}
-
-// TODO Change the content read to use the single page read
-pub fn read_full_dir_sorted(raw_dir: String) -> Vec<PageContent> {
-    let config = load_config();
-    let content_dir: String = format!("{}{}{}", config.local_content_dir, config.base_dir, raw_dir);
-    let paths = match fs::read_dir(&content_dir) {
+// TODO Rename this function to something clearer
+pub fn read_full_dir_sorted(web_path_dir: String) -> Vec<ContentMeta> {
+    let local_path = webpath_to_localpath(web_path_dir);
+    let paths = match fs::read_dir(&local_path) {
         Err(why) => panic!("Dir exists but can't be read: {}", why),
         Ok(val) => val,
     };
-    let mut pages: HashMap<String, PageContent> = HashMap::new();
-
-    let prefix = config.local_path();
-    for item in paths {
-        let this_path = match &item {
-            Err(why) => panic!("Bad item found in directory list: {}", why),
+    let mut page_metas: Vec<ContentMeta> = Vec::new();
+    let mut entries_read: Vec<String> = Vec::new(); // We just need one metafile read per content file track it here
+    for dir_entry in paths {
+        let check_path = match &dir_entry {
+            Err(why) => panic!("Well this was an unexpected entry in a dir: {}", why),
             Ok(val) => val.path(),
         };
-        // Only try to add content files, ignore directories and metadata files
-        if !&this_path.is_dir()
-            && !this_path
-                .extension()
-                .unwrap()
-                .to_string_lossy()
-                .to_string()
-                .ends_with("meta")
-        {
-            // Need the file stem
-            let file_stem: String = match this_path.file_stem() {
-                Some(val) => val.to_string_lossy().to_string(),
-                _ => panic!("Couldn't find file stem in directory listing"),
-            };
-            // Need just the web relative path
-            let dir_item_rel_path = match this_path
-                .to_string_lossy()
-                .to_string()
-                .strip_prefix(&prefix)
-            {
-                Some(val) => val.to_string(),
-                _ => panic!("Local content path prefix doesn't exist!?!  This is strange."),
-            };
-            if !pages.contains_key(&file_stem) {
-                pages.insert(file_stem.clone(), read_single_page(dir_item_rel_path));
+        let this_path = &check_path.to_string_lossy().to_string();
+        if !&check_path.is_dir() && !this_path.ends_with("meta") {
+            if !entries_read.iter().any(|x| {
+                // If we already read it, it's in the entries Vec so skip
+                x == &check_path
+                    .file_stem()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string()
+            }) {
+                entries_read.push(
+                    check_path
+                        .file_stem()
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string(),
+                );
+                page_metas.push(read_content_meta(&this_path));
             }
         }
     }
-    // Convert to Vec for sorting
-    let mut contents: Vec<PageContent> = Vec::new();
-    for (_key, value) in pages.drain() {
-        contents.push(value);
-    }
-
-    contents.sort_unstable_by_key(|x| x.markdown.created);
-    contents
+    page_metas.sort_unstable_by_key(|x| x.weight);
+    page_metas
 }
 
 // Mainly for reading the content_meta content_list values prefixes local dir and document base dir
 pub fn read_content_list(list_o_content: &Vec<String>) -> Vec<PageContent> {
-    let config = load_config();
     let mut page_list: Vec<PageContent> = Vec::new();
-    let content_path = config.local_path();
     for item in list_o_content {
-        let temp_string = format!("{}{}", &content_path, item);
-        let this_path = PathBuf::from(temp_string);
-        // Is this a path traversal error?
-        if !&this_path.is_dir() && this_path.exists() {
+        if does_content_exist(item.clone()) {
             page_list.push(read_single_page(item.clone()));
         } else {
-            println!("Content list failure.");
-            dbg!(list_o_content);
+            println!("Content list failure.  This doesn't exist: {}", item);
         }
     }
 
-    page_list.sort_unstable_by_key(|x| x.markdown.meta.weight);
+    page_list.sort_unstable_by_key(|x| x.meta.weight);
     page_list
 }
 
-// pub fn read_single_page(this_path: &std::path::Path) -> PageContent {
+/// This is a compositional function to pull the parts together into a page.  Each component load also breaks down
+/// further into file system operations, parsing and such.
+///
+/// Parameters:
+///     this_path(String), a web path most likely delivered by the web server routing
+/// Returns:
+///     PageContent, struct containing all the pieces of a content page
 pub fn read_single_page(this_path: String) -> PageContent {
     let config = load_config();
-    let this_path = PathBuf::from(format!("{}{}", config.local_path(), this_path));
+
+    let full_path_string = format!("{}{}", config.local_path(), &this_path);
     let mut page_content: PageContent = PageContent::default();
-    let file_stem: String = match this_path.file_stem() {
-        Some(val) => val.to_string_lossy().to_string(),
-        _ => panic!("Couldn't find file stem while reading single page."),
-    };
-    // Ensure markdown extension and convert markdown to HTML string
-    if this_path.extension().unwrap() == "md" {
-        page_content.markdown = MDContent {
-            created: read_file_creation_time(&this_path),
-            title: file_stem,
-            path: localpath_to_webpath(&PathBuf::from(&this_path)),
-            body: read_markdown_from_path(&this_path),
-            list: Vec::new(),
-            meta: ContentMeta::default(),
-        };
-    }
-    // Check for content metadata and load that if it exists
-    if check_path_alternatives(&this_path, ".content_meta") {
-        let content_meta_path =
-            String::from(this_path.to_string_lossy()).replace(".md", ".content_meta");
-        page_content.markdown.meta = read_content_meta_file(PathBuf::from(content_meta_path));
+
+    // SET SECTION META
+    page_content.section_meta = read_section_meta(&full_path_string);
+    // SET CONTENT META
+    page_content.meta = read_content_meta(&full_path_string);
+    // SET MARKDOWN CONTENT
+    page_content.markdown = read_markdown_content(&full_path_string);
+    // SET HTML CONTENT
+    page_content.html = read_html_content(&full_path_string);
+    // SET JSON CONTENT
+    page_content.json = read_json_content(&full_path_string);
+
+    // If the meta file contains a content_list of web paths, load the content from that list
+    // into the PageContent.list Vec.
+    // NOTE: This is recursive in an unsafe way, a circular reference will break things here
+    if page_content.meta.content_list.len() > 0 {
+        page_content.list = read_content_list(&page_content.meta.content_list);
     }
 
-    // If the meta file contains a content_list load that into the MDContent list
-    // This is essentially recursive
-    if page_content.markdown.meta.content_list.len() > 0 {
-        page_content.markdown.list = read_content_list(&page_content.markdown.meta.content_list);
-    }
     page_content
 }
 
+/// Take a String turn it into a pathbuf and read the content meta if it has it.
+///
+/// NOTE: Unlike the other simple readers, this one will create a default, customize it a bit and save it
+/// if the metafile doesn't exist so our page can still render somewhat correctly and we can modify the
+/// values manually.
+///
+/// Parameters:
+///     full_path_string(&String), the absolute path in the filesystem for the metafile
+/// Returns:
+///     ContentMeta, The metafile struct for content
+pub fn read_content_meta(full_path_string: &String) -> ContentMeta {
+    let mut this_path = PathBuf::from(full_path_string);
+    this_path.set_extension("content_meta");
+    if this_path.exists() {
+        let this_content_meta = read_content_meta_file(this_path);
+        return this_content_meta;
+    } else {
+        let mut new_meta = ContentMeta::default();
+        new_meta.title = string_from_stem(&this_path);
+        new_meta.path = localpath_to_webpath(&this_path);
+        save_content_meta_file(&this_path, &new_meta);
+        return new_meta;
+    }
+}
+
+fn read_markdown_content(this_path_string: &String) -> MDContent {
+    let mut markdown_path = PathBuf::from(this_path_string);
+    markdown_path.set_extension("md");
+    if markdown_path.exists() {
+        let markdown_content = MDContent {
+            created: read_file_creation_time(&markdown_path),
+            modified: read_file_modified_time(&markdown_path),
+            body: read_markdown_from_path(&markdown_path), //TODO Lint/Validate/Filter here?
+        };
+        return markdown_content;
+    } else {
+        let mut markdown_content = MDContent::default();
+        markdown_content.body = format!(
+            "Markdown file does not exist: {}",
+            markdown_path.to_string_lossy()
+        );
+        return markdown_content;
+    }
+}
+
+fn read_html_content(this_path_string: &String) -> Option<HTMLContent> {
+    let mut html_path = PathBuf::from(this_path_string);
+    html_path.set_extension("html");
+    if html_path.exists() {
+        let html_content = HTMLContent {
+            created: read_file_creation_time(&html_path),
+            modified: read_file_modified_time(&html_path),
+            body: read_html_from_path(&html_path), //TODO Lint/Validate/Filter here?
+        };
+        return Some(html_content);
+    } else {
+        // let mut html_content = HTMLContent::default();
+        // html_content.body = format!("HTML file does not exist: {}", html_path.to_string_lossy());
+        // return html_content;
+        return None;
+    }
+}
+
+fn read_json_content(this_path_string: &String) -> Option<JSONContent> {
+    let mut json_path = PathBuf::from(this_path_string);
+    json_path.set_extension("json");
+    if json_path.exists() {
+        let json_content = JSONContent {
+            created: read_file_creation_time(&json_path),
+            modified: read_file_modified_time(&json_path),
+            body: read_json_from_path(&json_path), //TODO Lint/Validate/Filter here?
+        };
+        return Some(json_content);
+    } else {
+        // let mut json_content = JSONContent::default();
+        // json_content.body = format!("JSON file does not exist: {}", json_path.to_string_lossy());
+        // return json_content;
+        return None;
+    }
+}
+
+/// Just wraps the .filestem() method to always return a string even if it's an error.
+fn string_from_stem(this_path: &PathBuf) -> String {
+    let this_string = match this_path.file_stem() {
+        Some(val) => val.to_string_lossy().to_string(),
+        _ => String::from("Default file stem value ERROR."),
+    };
+    this_string
+}
+
+/// Standard set of filesystem and serialization operations to save a content metafile
+fn save_content_meta_file(this_path: &PathBuf, metadata: &ContentMeta) {
+    let mut file = match fs::File::create(this_path) {
+        Err(why) => panic!("Content meta default file creation fail: {}", why),
+        Ok(value) => value,
+    };
+    let serialized_meta = match serde_json::to_string_pretty(&metadata) {
+        Err(why) => panic!("Serialize to json fail: {}", why),
+        Ok(value) => value,
+    };
+    match file.write_all(&serialized_meta.as_bytes()) {
+        Err(why) => panic!(
+            "A default metafile couldn't be created for this path: {}, {}",
+            this_path.to_string_lossy(),
+            why
+        ),
+        Ok(val) => val,
+    };
+}
+
+/// File system read and deserialization of a ContentMeta file
 pub fn read_content_meta_file(file_path: PathBuf) -> ContentMeta {
     let mut content_meta = String::new();
 
     // File read
     let mut _file = match fs::File::open(&file_path) {
-        Err(why) => panic!("Couldn't open file: {}", why),
+        Err(why) => panic!(
+            "Couldn't open content meta file: {} -> {}",
+            &file_path.to_string_lossy(),
+            why
+        ),
         Ok(mut _file) => _file.read_to_string(&mut content_meta),
     };
     // Deserialize the JSON
@@ -532,6 +683,7 @@ pub fn read_content_meta_file(file_path: PathBuf) -> ContentMeta {
             // possible while preserving existing values.
             let mut error_meta = ContentMeta::default();
             error_meta.description = format!("JSON Parse Error: {}", why);
+            error_meta.title = "Error parsing metadata file".to_string();
             error_meta
         }
         Ok(value) => value,
@@ -539,40 +691,17 @@ pub fn read_content_meta_file(file_path: PathBuf) -> ContentMeta {
     return_struct
 }
 
-// This function looks for a base markdown file by extension and returns TRUE if it exists, confirming there is a piece
-// of content that inherits CSS or JSON
-// TODO Add an input validation layer here, check for illegal escape attempts and return False if found
-pub fn check_path_alternatives(this_path: &PathBuf, extension: &str) -> bool {
-    let path_check_str: String = this_path.to_string_lossy().replace(".md", extension);
-    let new_path: &Path = Path::new(&path_check_str);
-    new_path.exists()
-}
-
-// INFO Potential section of file operations to move to a module
-
-pub fn does_content_exist(potential_content: String) -> bool {
+// For a given piece of content pull the directory menu_meta file as section meta or return a default
+pub fn read_section_meta(content_location: &String) -> MenuItemMeta {
     let config = load_config();
-    // TODO Insert additional path traversal filters here
-    let raw_path = format!("{}{}", config.local_path(), potential_content,);
-    // Markdown content test
-    if Path::new(&format!("{}.{}", raw_path, "md")).exists() {
-        return true;
+    let mut this_path = PathBuf::from(format!("{}{}", config.local_path(), content_location));
+    this_path.pop();
+    this_path.set_extension("menu_meta");
+    if this_path.exists() {
+        let this_menu_meta = read_menu_meta_file(this_path);
+        return this_menu_meta;
     } else {
-        // TODO "else if" here to check for .json and .html and such
-        return false;
-    }
-}
-
-pub fn does_directory_exist(potential_content: String) -> bool {
-    let config = load_config();
-    // Insert additional path traversal filters here
-    let raw_path = format!("{}{}", config.local_path(), potential_content,);
-    // Markdown content test
-    if Path::new(&raw_path).is_dir() {
-        return true;
-    } else {
-        // Maybe a good place for a directory blacklist?
-        return false;
+        return MenuItemMeta::default();
     }
 }
 
@@ -601,6 +730,65 @@ pub fn read_file_modified_time(path: &std::path::Path) -> chrono::DateTime<chron
         }
     };
     // unix_time_to_iso()
+}
+
+//
+// INFO Potential section of file system operations to move to a module
+//
+
+fn localpath_to_webpath(this_localpath: &std::path::PathBuf) -> String {
+    let config = load_config();
+    let mut extensionless_path = this_localpath.clone();
+    extensionless_path.set_extension("");
+    let mut rel_path = extensionless_path.to_string_lossy().to_string();
+    // offset is necessary for replace range, this is the calculation of it
+    let offset = rel_path.find(&config.base_dir).unwrap() + config.base_dir.len(); // I think panic here is ok as it will break the site generally anyway to send anything incorrect
+    rel_path.replace_range(..offset, "/");
+    return rel_path;
+}
+
+fn webpath_to_localpath(this_webpath: String) -> String {
+    let config = load_config();
+    let this_local_path = format!("{}{}", config.local_path(), this_webpath);
+    return this_local_path;
+}
+
+// This function looks for a given extension variant for a string of a path
+// TODO Add an input validation layer here, check for illegal escape attempts and return False if found
+// TODO TODO This is probably not even necessary anymore given the PathBuf.set_extension() method now
+pub fn check_path_alternatives(this_path: &String, extension: &str) -> bool {
+    let mut this_path = PathBuf::from(this_path);
+    this_path.set_extension(extension);
+    this_path.exists()
+}
+
+/// Checks a given webpath to see if the base content exists in one of the three formats by extension
+///
+/// Parameters:
+///     potential_content_webpath (String), should be a web renderable path
+/// Returns:
+///     bool, does it exist?
+pub fn does_content_exist(potential_content_webpath: String) -> bool {
+    let mut this_path = PathBuf::from(webpath_to_localpath(potential_content_webpath));
+    this_path.set_extension("md");
+    if this_path.exists() {
+        return true;
+    }
+    this_path.set_extension("html");
+    if this_path.exists() {
+        return true;
+    }
+    this_path.set_extension("json");
+    if this_path.exists() {
+        return true;
+    }
+    false
+}
+
+pub fn does_directory_exist(potential_content_webpath: String) -> bool {
+    // Maybe a good place for a directory blacklist?
+    let this_path = webpath_to_localpath(potential_content_webpath);
+    return Path::new(&this_path).is_dir();
 }
 
 // TODO The following functions are place holders for the same but with strong validation
