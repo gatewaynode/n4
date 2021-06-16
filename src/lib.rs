@@ -13,8 +13,9 @@ use std::time::UNIX_EPOCH;
 
 use chrono;
 use chrono::prelude::*;
+use comrak::{markdown_to_html, ComrakOptions};
 use dirs;
-use markdown;
+// use markdown; // Deprecate in favor of comrak
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use v_htmlescape::escape;
@@ -799,7 +800,8 @@ pub fn read_markdown_from_path(path: &std::path::Path) -> String {
         Err(why) => panic!("Couldn't open file: {}", why),
         Ok(mut _file) => match _file.read_to_string(&mut content) {
             Err(why) => panic!("Couldn't read file: {}", why),
-            Ok(_) => return markdown::to_html(&content),
+            // Ok(_) => return markdown::to_html(&content),
+            Ok(_) => return markdown_to_html(&content, &ComrakOptions::default()),
         },
     };
 }
