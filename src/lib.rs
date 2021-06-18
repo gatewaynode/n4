@@ -579,7 +579,7 @@ pub fn read_content_meta(full_path_string: &String) -> ContentMeta {
     }
 }
 
-fn read_markdown_content(this_path_string: &String) -> MDContent {
+pub fn read_markdown_content(this_path_string: &String) -> MDContent {
     let mut markdown_path = PathBuf::from(this_path_string);
     markdown_path.set_extension("md");
     if markdown_path.exists() {

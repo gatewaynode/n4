@@ -14,7 +14,7 @@ serde_derive = "1.0.123"
 
 # Development dependencies
 # file_tree = { path="/home/anon/code/file_tree" }
-file_tree = { git="https://github.com/gatewaynode/file_tree.git" }
+file_tree = { git="https://github.com/gatewaynode/file_tree.git", branch="main" }
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
 chrono-humanize = "0.1.1"
